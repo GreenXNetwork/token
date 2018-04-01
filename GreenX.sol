@@ -422,12 +422,14 @@ contract GreenX is Owner {
 
     uint refundAmount = investedAmount.sub(transactionFee);
     uint tokenRevoked = balances[noneKycAddr];
+    uint changeAmount = msg.value - refundAmount;
 
     investedMoney[noneKycAddr] = 0;
     balances[noneKycAddr] = 0;
     availableTokenForSale = availableTokenForSale.add(tokenRevoked);
 
     noneKycAddr.transfer(refundAmount);
+    msg.sender.transfer(changeAmount);
 
     RevokeToken(noneKycAddr, refundAmount, tokenRevoked, transactionFee);
   }
