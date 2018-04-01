@@ -86,8 +86,6 @@ contract GreenX is Owner {
   address public teamAddress;
   address public reservedAddress;
   
-  
-
   // Variables for sale process
   mapping(address => bool) public privateList;
   mapping(address => bool) public whiteList;
@@ -121,9 +119,6 @@ contract GreenX is Owner {
   bool public isTransferable;
 
   // Sale info
-  uint256 hardcap = 100000 ether; //100.000 Ether
-  uint256 public totalInvestedEther = 0;
-
   uint256 TOKEN_FOR_ICO = 250000000 * 10 ** 18; // 250m
   uint256 public referalReservedTokenNumber = 50000000 * 10**18; // 50m
   uint256 public reservedTokenNumber = 1200000000 * 10 ** 18; // 120m
@@ -131,7 +126,7 @@ contract GreenX is Owner {
   uint256 public teamTokenNumber = 30000000 * 10 ** 18; // 30m
 
   uint256 public availableTokenForSale = TOKEN_FOR_ICO;
-  uint256 public availableReservedTokenNumber = reservedTokenNumber;
+  uint256 public availableReservedTokenNumber = reservedTokenNumber + referalReservedTokenNumber;
 
 
   event AddToWhiteList(address investorAddr);
@@ -149,7 +144,7 @@ contract GreenX is Owner {
   event SetPreSalePrice(uint256 price);
   event SetICOPrice(uint256 price);
 
-  event IssueToken(address investor, uint256 amount, uint state);
+  event IssueToken(address investor,uint256 amount, uint256 tokenAmount, uint state);
   event RevokeToken(address noneKycAddress, uint256 numberOfEth, uint256 numberOfToken, uint256 fee);
 
   event AllocateTokenForFounder(address founderAddress, uint256 founderAllocateTimes, uint256 amount);
@@ -174,18 +169,14 @@ contract GreenX is Owner {
     _;
   }
 
-  modifier onlyAdmin() {
-    require(msg.sender == admin);
+  modifier onlyOwnerOrAdminOrPortal() {
+    require(msg.sender == owner || msg.sender == admin || msg.sender == portal);
     _;
   }
 
-  modifier onlyPortal() {
-    require(msg.sender == portal);
-    _;
-  }
-
-  modifier onlyAdminAndPortal() {
-    require(msg.sender == portal || msg.sender == admin);
+  modifier onlyOwnerOrAdmin() {
+//    require(msg.sender == owner || msg.sender == admin || msg.sender == portal);
+	require(msg.sender == owner || msg.sender == admin);
     _;
   }
 
@@ -198,7 +189,7 @@ contract GreenX is Owner {
   /**
    * ERC20 Transfer token
    */
-  function transfer(address _to, uint256 _value) transferable public returns (bool) {
+  function transfer(address _to, uint256 _value) transferable external returns (bool) {
     require(_to != address(0));
     require(_value <= balances[msg.sender]);
 
@@ -212,7 +203,7 @@ contract GreenX is Owner {
   /**
    * ERC20 TransferFrom token
    */
-  function transferFrom(address _from, address _to, uint256 _value) transferable public returns (bool) {
+  function transferFrom(address _from, address _to, uint256 _value) transferable isActive external returns (bool) {
     require(_to != address(0));
     require(_value <= balances[_from]);
     require(_value <= allowed[_from][msg.sender]);
@@ -227,7 +218,7 @@ contract GreenX is Owner {
   /**
    * ERC20 approve
    */
-  function approve(address _spender, uint256 _value) transferable public returns (bool) {
+  function approve(address _spender, uint256 _value) transferable isActive external returns (bool) {
     allowed[msg.sender][_spender] = _value;
     Approval(msg.sender, _spender, _value);
     return true;
@@ -257,7 +248,6 @@ contract GreenX is Owner {
     }
 
     if (state == IN_PRESALE) {
-      require(whiteList[msg.sender] == true);
       return issueTokenForPresale(state);
     }
 
@@ -285,49 +275,48 @@ contract GreenX is Owner {
   }
 
   function issueTokenForPrivateInvestor(uint256 state) private {
-    //TODO: 
-    uint256 price = privateSalePrice;    
+    uint256 price = privateSalePrice;
     issueToken(price, state);
   }
 
   function issueTokenForPresale(uint256 state) private {
-    //TODO: 
-    uint256 price = preSalePrice;    
+    uint256 price = preSalePrice;
+    trackdownInvestedEther();
     issueToken(price, state);
   }
 
   function issueTokenForICO(uint256 state) private {
-    //TODO: 
     uint256 price = icoStandardPrice;
     if (state == IN_ICO_PHASE1) {
       price = icoFirstPhasePrice;
     } else if (state == IN_ICO_PHASE2) {
       price = icoSecondPhasePrice;
     }
-    if (whiteList[msg.sender] == false) {
-      noneKYCInvestedMoney[msg.sender] = noneKYCInvestedMoney[msg.sender].add(msg.value);
-    }
+    trackdownInvestedEther();
     issueToken(price, state);
   }
 
+  function trackdownInvestedEther() private {
+    if (whiteList[msg.sender] == false) {
+      noneKYCInvestedMoney[msg.sender] = noneKYCInvestedMoney[msg.sender].add(msg.value);
+    }
+  }
+
   function issueToken(uint256 price, uint256 state) private {
-    require(totalInvestedEther + msg.value <= hardcap);
     require(fundKeeperAddress != address(0));
     address investor = msg.sender;
     uint amount = msg.value.mul(price).mul(10**18).div(1 ether);
     require(availableTokenForSale >= amount);
-    
-    totalInvestedEther += msg.value;
 
     balances[investor] = balances[investor].add(amount);
     availableTokenForSale = availableTokenForSale.sub(amount);
-    IssueToken(investor, amount, state);
+    IssueToken(investor, msg.value, amount, state);
 
     // Move ether to fund keeper address
     fundKeeperAddress.transfer(msg.value);
   }
 
-  function addToWhitelist(address[] investorAddrs) onlyAdminAndPortal() public returns(bool) {
+  function addToWhitelist(address[] investorAddrs) isActive onlyOwnerOrAdminOrPortal external returns(bool) {
     for (uint256 i = 0; i < investorAddrs.length; i++) {
       whiteList[investorAddrs[i]] = true;
       AddToWhiteList(investorAddrs[i]);
@@ -335,7 +324,7 @@ contract GreenX is Owner {
     return true;
   }
 
-  function removeFromWhitelist(address[] investorAddrs) onlyAdminAndPortal() public returns(bool) {
+  function removeFromWhitelist(address[] investorAddrs) isActive onlyOwnerOrAdminOrPortal external returns(bool) {
     for (uint256 i = 0; i < investorAddrs.length; i++) {
       whiteList[investorAddrs[i]] = false;
       RemoveFromWhiteList(investorAddrs[i]);
@@ -343,9 +332,7 @@ contract GreenX is Owner {
     return true;
   }
 
-  function addPrivateInvestor(address[] investorAddrs) onlyAdminAndPortal() public returns(bool) {
-    require(msg.sender == admin || msg.sender == portal);
-
+  function addPrivateInvestor(address[] investorAddrs) isActive onlyOwnerOrAdminOrPortal external returns(bool) {
     for (uint256 i = 0; i < investorAddrs.length; i++) {
       privateList[investorAddrs[i]] = true;
       AddToPrivateInvestor(investorAddrs[i]);
@@ -353,7 +340,7 @@ contract GreenX is Owner {
     return true;
   }
 
-  function removePrivateInvestor(address[] investorAddrs) onlyAdminAndPortal() public returns(bool) {
+  function removePrivateInvestor(address[] investorAddrs) isActive onlyOwnerOrAdminOrPortal external returns(bool) {
     for (uint256 i = 0; i < investorAddrs.length; i++) {
       privateList[investorAddrs[i]] = false;
       RemoveFromPrivateInvestor(investorAddrs[i]);
@@ -361,7 +348,7 @@ contract GreenX is Owner {
     return true;
   }
 
-  function startPrivateSale() onlyAdmin() public isActive returns (bool) {
+  function startPrivateSale() isActive onlyOwnerOrAdmin external returns (bool) {
     require(saleState == NOT_SALE);
     require(privateSalePrice > 0);
 
@@ -371,7 +358,7 @@ contract GreenX is Owner {
     return true;
   }
 
-  function startPreSale() onlyAdmin() public isActive returns (bool) {
+  function startPreSale() isActive onlyOwnerOrAdmin external returns (bool) {
     require(saleState < IN_PRESALE);
     require(preSalePrice != 0);
     saleState = IN_PRESALE;
@@ -380,7 +367,7 @@ contract GreenX is Owner {
     return true;
   }
 
-  function endPreSale() onlyAdmin() public isActive returns (bool) {
+  function endPreSale() isActive onlyOwnerOrAdmin external returns (bool) {
     require(saleState == IN_PRESALE);
     saleState = END_PRESALE;
     isSelling = false;
@@ -388,7 +375,7 @@ contract GreenX is Owner {
     return true;
   }
 
-  function startICO() onlyAdmin() public isActive returns (bool) {
+  function startICO() isActive onlyOwnerOrAdmin external returns (bool) {
     require(saleState == END_PRESALE);
     saleState = IN_ICO_PHASE1;
     icoStartTime = now;
@@ -397,8 +384,10 @@ contract GreenX is Owner {
     return true;
   }
 
-  function endICO() onlyAdmin() onlyAdmin() public isActive returns (bool) {
-    require(getCurrentState() == END_SALE || totalInvestedEther >= hardcap);
+  function endICO() isActive onlyOwnerOrAdmin external returns (bool) {
+    require(getCurrentState() == END_SALE);
+    require(icoEndTime == 0);
+
     saleState = END_SALE;
     isSelling = false;
     icoEndTime = now;
@@ -406,21 +395,21 @@ contract GreenX is Owner {
     return true;
   }
 
-  function setPrivateSalePrice(uint256 tokenPerEther) onlyAdmin() public returns(bool) {
+  function setPrivateSalePrice(uint256 tokenPerEther) onlyOwnerOrAdmin external returns(bool) {
     require(getCurrentState() == NOT_SALE);
     privateSalePrice = tokenPerEther;
     SetPrivateSalePrice(tokenPerEther);
     return true;
   }
 
-  function setPreSalePrice(uint256 tokenPerEther) onlyAdmin() public returns(bool) {
+  function setPreSalePrice(uint256 tokenPerEther) onlyOwnerOrAdmin external returns(bool) {
     require(getCurrentState() < IN_PRESALE);
     preSalePrice = tokenPerEther;
     SetPreSalePrice(tokenPerEther);
     return true;
   }
 
-  function setICOPrice(uint256 tokenPerEther) onlyAdmin() public returns(bool) {
+  function setICOPrice(uint256 tokenPerEther) onlyOwnerOrAdmin external returns(bool) {
     require(getCurrentState() < IN_ICO_PHASE1);
     icoStandardPrice = tokenPerEther;
     icoFirstPhasePrice = tokenPerEther + tokenPerEther * 20 / 100; // Bonus 20%
@@ -429,7 +418,7 @@ contract GreenX is Owner {
     return true;
   }
 
-  function revokeToken(address noneKycAddr, uint256 transactionFee) onlyAdmin() public payable {
+  function revokeToken(address noneKycAddr, uint256 transactionFee) isActive onlyOwnerOrAdmin external payable {
     uint256 investedAmount = noneKYCInvestedMoney[noneKycAddr];
     require(whiteList[noneKycAddr] == false);
     require(investedAmount > 0);
@@ -445,51 +434,51 @@ contract GreenX is Owner {
     RevokeToken(noneKycAddr, refundAmount, tokenRevoked, transactionFee);
   }
 
-  function activateContract() onlyOwner() public {
+  function activateContract() onlyOwner() external {
     inactive = false;
     ActivateContract();
   }
 
-  function deactivateContract() onlyOwner() public {
+  function deactivateContract() onlyOwner() external {
     inactive = true;
     DeactivateContract();
   }
 
-  function enableTokenTransfer() onlyOwner() public {
+  function enableTokenTransfer() onlyOwner external {
     isTransferable = true;
   }
 
-  function changeFundKeeper(address newAddress) onlyOwner() public {
+  function changeFundKeeper(address newAddress) onlyOwner external {
     require(fundKeeperAddress != newAddress);
     fundKeeperAddress = newAddress;
   }
 
-  function changeAdminAddress(address newAddress) onlyAdmin() public {
+  function changeAdminAddress(address newAddress) onlyOwner external {
     require(admin != newAddress);
     admin = newAddress;
   }
 
-  function changePortalAddress(address newAddress) onlyAdmin() public {
+  function changePortalAddress(address newAddress) onlyOwner external {
     require(portal != newAddress);
     portal = newAddress;
   }
   
-  function changeFounderAddress(address newAddress) onlyAdmin() public {
+  function changeFounderAddress(address newAddress) onlyOwnerOrAdmin external {
     require(founderAddress != newAddress);
     founderAddress = newAddress;
   }
 
-  function changeTeamAddress(address newAddress) onlyAdmin() public {
+  function changeTeamAddress(address newAddress) onlyOwnerOrAdmin external {
     require(teamAddress != newAddress);
     teamAddress = newAddress;
   }
 
-  function changeReservedAddress(address newAddress) onlyAdmin() public {
+  function changeReservedAddress(address newAddress) onlyOwnerOrAdmin external {
     require(reservedAddress != newAddress);
     reservedAddress = newAddress;
   }
 
-  function allocateTokenForFounder() onlyAdmin() public {
+  function allocateTokenForFounder() isActive onlyOwnerOrAdmin external {
     require(getCurrentState() == END_SALE);
     require(founderAddress != address(0));
 
@@ -522,7 +511,7 @@ contract GreenX is Owner {
     revert();
   }
 
-  function allocateTokenForTeam () onlyAdmin() public {
+  function allocateTokenForTeam () isActive onlyOwnerOrAdmin external {
     require(getCurrentState() == END_SALE);
     require(teamAddress != address(0));
 
@@ -555,18 +544,20 @@ contract GreenX is Owner {
     revert();
   }
 
-  function moveAllAvailableToken(address tokenHolder) onlyAdmin() public {
+  function moveAllAvailableToken(address tokenHolder) isActive onlyOwnerOrAdmin external {
     require(saleState == END_SALE);
     require(availableTokenForSale > 0);
+    require(tokenHolder != address(0));
 
     balances[tokenHolder] = balances[tokenHolder].add(availableTokenForSale);
     availableTokenForSale = 0;
   }
 
-  function allocateReservedToken(uint amount) onlyAdmin() public {
+  function allocateReservedToken(uint amount) isActive onlyOwnerOrAdmin external {
     require(saleState == END_SALE);
     require(availableReservedTokenNumber > 0);
     require(availableReservedTokenNumber >= amount);
+    require(reservedAddress != address(0));
 
     balances[reservedAddress] = balances[reservedAddress].add(amount);
     availableReservedTokenNumber = availableReservedTokenNumber.sub(amount);
