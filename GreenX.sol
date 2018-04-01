@@ -85,11 +85,14 @@ contract GreenX is Owner {
   address public founderAddress;
   address public teamAddress;
   address public reservedAddress;
-  
+
   // Variables for sale process
   mapping(address => bool) public privateList;
   mapping(address => bool) public whiteList;
-  mapping(address => uint256) public noneKYCInvestedMoney;
+  // mapping(address => uint256) public noneKYCInvestedMoney;
+
+  // Total invested amount ETH of each address
+  mapping(address => uint256) public totalInvestedAmountOf;
 
   // Token price per 1 Ether
   uint256 public privateSalePrice;
@@ -175,8 +178,7 @@ contract GreenX is Owner {
   }
 
   modifier onlyOwnerOrAdmin() {
-//    require(msg.sender == owner || msg.sender == admin || msg.sender == portal);
-	require(msg.sender == owner || msg.sender == admin);
+    require(msg.sender == owner || msg.sender == admin);
     _;
   }
 
@@ -281,7 +283,7 @@ contract GreenX is Owner {
 
   function issueTokenForPresale(uint256 state) private {
     uint256 price = preSalePrice;
-    trackdownInvestedEther();
+    // trackdownInvestedEther();
     issueToken(price, state);
   }
 
@@ -292,15 +294,15 @@ contract GreenX is Owner {
     } else if (state == IN_ICO_PHASE2) {
       price = icoSecondPhasePrice;
     }
-    trackdownInvestedEther();
+    // trackdownInvestedEther();
     issueToken(price, state);
   }
 
-  function trackdownInvestedEther() private {
-    if (whiteList[msg.sender] == false) {
-      noneKYCInvestedMoney[msg.sender] = noneKYCInvestedMoney[msg.sender].add(msg.value);
-    }
-  }
+  // function trackdownInvestedEther() private {
+  //   if (whiteList[msg.sender] == false) {
+  //     noneKYCInvestedMoney[msg.sender] = noneKYCInvestedMoney[msg.sender].add(msg.value);
+  //   }
+  // }
 
   function issueToken(uint256 price, uint256 state) private {
     require(fundKeeperAddress != address(0));
@@ -310,10 +312,17 @@ contract GreenX is Owner {
 
     balances[investor] = balances[investor].add(amount);
     availableTokenForSale = availableTokenForSale.sub(amount);
-    IssueToken(investor, msg.value, amount, state);
+
+    // Calculate invested ETH amount of address
+    totalInvestedAmountOf[msg.sender] = totalInvestedAmountOf[msg.sender].add(msg.value);
 
     // Move ether to fund keeper address
     fundKeeperAddress.transfer(msg.value);
+
+    IssueToken(investor, msg.value, amount, state);
+
+    // // Move ether to fund keeper address
+    // fundKeeperAddress.transfer(msg.value);
   }
 
   function addToWhitelist(address[] investorAddrs) isActive onlyOwnerOrAdminOrPortal external returns(bool) {
@@ -349,8 +358,9 @@ contract GreenX is Owner {
   }
 
   function startPrivateSale() isActive onlyOwnerOrAdmin external returns (bool) {
-    require(saleState == NOT_SALE);
-    require(privateSalePrice > 0);
+    // require(saleState == NOT_SALE);
+    // require(privateSalePrice > 0);
+    require(saleState == NOT_SALE && privateSalePrice > 0);
 
     saleState = IN_PRIVATE_SALE;
     isSelling = true;
@@ -359,8 +369,9 @@ contract GreenX is Owner {
   }
 
   function startPreSale() isActive onlyOwnerOrAdmin external returns (bool) {
-    require(saleState < IN_PRESALE);
-    require(preSalePrice != 0);
+    // require(saleState < IN_PRESALE);
+    // require(preSalePrice != 0);
+    require(saleState < IN_PRESALE && preSalePrice != 0);
     saleState = IN_PRESALE;
     isSelling = true;
     StartPresale(IN_PRESALE);
@@ -385,8 +396,9 @@ contract GreenX is Owner {
   }
 
   function endICO() isActive onlyOwnerOrAdmin external returns (bool) {
-    require(getCurrentState() == END_SALE);
-    require(icoEndTime == 0);
+    // require(getCurrentState() == END_SALE);
+    // require(icoEndTime == 0);
+    require(getCurrentState() == END_SALE && icoEndTime == 0);
 
     saleState = END_SALE;
     isSelling = false;
@@ -419,15 +431,21 @@ contract GreenX is Owner {
   }
 
   function revokeToken(address noneKycAddr, uint256 transactionFee) isActive onlyOwnerOrAdmin external payable {
-    uint256 investedAmount = noneKYCInvestedMoney[noneKycAddr];
-    require(whiteList[noneKycAddr] == false);
-    require(investedAmount > 0);
-    require(investedAmount >= transactionFee);
-    require(msg.value >= investedAmount);
+    // uint256 investedAmount = noneKYCInvestedMoney[noneKycAddr];
+    uint256 investedAmount = totalInvestedAmountOf[noneKycAddr];
+    // require(whiteList[noneKycAddr] == false);
+    // require(whiteList[noneKycAddr] == false);
+    // require(investedAmount > 0);
+    // require(investedAmount >= transactionFee);
+    // require(msg.value >= investedAmount);
+    require(whiteList[noneKycAddr] == false && privateList[noneKycAddr] == false && investedAmount > 0 && investedAmount >= transactionFee);
 
     uint refundAmount = investedAmount.sub(transactionFee);
     uint tokenRevoked = balances[noneKycAddr];
-    noneKYCInvestedMoney[noneKycAddr] = 0;
+
+    // noneKYCInvestedMoney[noneKycAddr] = 0;
+    totalInvestedAmountOf[noneKycAddr] = 0;
+
     balances[noneKycAddr] = 0;
     noneKycAddr.transfer(refundAmount);
     availableTokenForSale = availableTokenForSale.add(tokenRevoked);
