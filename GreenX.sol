@@ -1,3 +1,8 @@
+/*
+ *  Comments :
+ *  - Change setting sale price for each ICO round from being automatic to manual.
+ *  - Change setting sale price from being strict just only time to being flexible everytime.
+ */
 pragma solidity ^0.4.17;
 
 contract Owner {
@@ -78,10 +83,10 @@ contract GreenX is Owner {
   event Transfer(address indexed from, address indexed to, uint256 value);
 
   // Variables for control
-  address public portal;
-  address public admin;
+  address public portalAddress;
+  address public adminAddress;
 
-  address public fundKeeperAddress;
+  address public wallet;
   address public founderAddress;
   address public teamAddress;
   address public reservedAddress;
@@ -89,14 +94,14 @@ contract GreenX is Owner {
   // Variables for sale process
   mapping(address => bool) public privateList;
   mapping(address => bool) public whiteList;
-  mapping(address => uint256) public investedMoney;
+  mapping(address => uint256) public totalInvestedAmountOf;
 
   // Token price per 1 Ether
   uint256 public privateSalePrice;
   uint256 public preSalePrice;
   uint256 public icoStandardPrice;
-  uint256 public icoFirstPhasePrice;
-  uint256 public icoSecondPhasePrice;
+  uint256 public ico1stPrice;
+  uint256 public ico2ndPrice;
 
   uint256 NOT_SALE = 0;
   uint256 IN_PRIVATE_SALE = 1;
@@ -108,31 +113,32 @@ contract GreenX is Owner {
   uint256 END_SALE = 7;
 
   uint256 private saleState;
-  uint256 private icoStartTime;
-  uint256 private icoEndTime;
+  // uint256 private icoStartTime;
+  // uint256 private icoEndTime;
+  uint256 public icoStartTime;
+  uint256 public icoEndTime;
 
-  uint founderAllocateTimes = 1;
-  uint teamAllocateTimes = 1;
+  uint founderAllocatedTime = 1;
+  uint teamAllocatedTime = 1;
 
-  bool public inactive;
+  bool public inActive;
   bool public isSelling;
   bool public isTransferable;
 
   // Sale info
   uint256 TOKEN_FOR_ICO = 250000000 * 10 ** 18; // 250m
-  uint256 public referalReservedTokenNumber = 50000000 * 10**18; // 50m
-  uint256 public reservedTokenNumber = 1200000000 * 10 ** 18; // 120m
-  uint256 public founderTokenNumber = 50000000 * 10 ** 18; // 50m
-  uint256 public teamTokenNumber = 30000000 * 10 ** 18; // 30m
+  uint256 public bountyAllocation = 50000000 * 10**18; // 50m
+  uint256 public reservedAllocation = 1200000000 * 10 ** 18; // 120m
+  uint256 public founderAllocation = 50000000 * 10 ** 18; // 50m
+  uint256 public teamAllocation = 30000000 * 10 ** 18; // 30m
 
   uint256 public availableTokenForSale = TOKEN_FOR_ICO;
-  uint256 public availableReservedTokenNumber = reservedTokenNumber + referalReservedTokenNumber;
-
+  uint256 public availableReservedAndBountyAllocation = reservedAllocation + bountyAllocation;
 
   event AddToWhiteList(address investorAddr);
   event RemoveFromWhiteList(address investorAddr);
-  event AddToPrivateInvestor(address investorAddr);
-  event RemoveFromPrivateInvestor(address investorAddr);
+  event AddToPrivateList(address investorAddr);
+  event RemoveFromPrivateList(address investorAddr);
 
   event StartPrivateSale(uint256 state);
   event StartPresale(uint256 state);
@@ -144,18 +150,18 @@ contract GreenX is Owner {
   event SetPreSalePrice(uint256 price);
   event SetICOPrice(uint256 price);
 
-  event IssueToken(address investor,uint256 amount, uint256 tokenAmount, uint state);
+  event IssueToken(address investor, uint256 amount, uint256 tokenAmount, uint state);
   event RevokeToken(address noneKycAddress, uint256 numberOfEth, uint256 numberOfToken, uint256 fee);
 
-  event AllocateTokenForFounder(address founderAddress, uint256 founderAllocateTimes, uint256 amount);
-  event AllocateTokenForTeam(address teamAddress, uint256 teamAllocateTimes, uint256 amount);
+  event AllocateTokenForFounder(address founderAddress, uint256 founderAllocatedTime, uint256 amount);
+  event AllocateTokenForTeam(address teamAddress, uint256 teamAllocatedTime, uint256 amount);
   event AllocateReservedToken(address reservedAddress, uint256 amount);
 
   event ActivateContract();
   event DeactivateContract();
 
   modifier isActive() {
-    require(inactive == false);
+    require(inActive == false);
     _;
   }
 
@@ -170,19 +176,21 @@ contract GreenX is Owner {
   }
 
   modifier onlyOwnerOrAdminOrPortal() {
-    require(msg.sender == owner || msg.sender == admin || msg.sender == portal);
+    require(msg.sender == owner || msg.sender == adminAddress || msg.sender == portalAddress);
     _;
   }
 
   modifier onlyOwnerOrAdmin() {
-    require(msg.sender == owner || msg.sender == admin);
+    require(msg.sender == owner || msg.sender == adminAddress);
     _;
   }
 
   function GreenX(address fundAddr, address adminAddr, address portalAddr) Owner(msg.sender) public {
-    fundKeeperAddress = fundAddr;
-    admin = adminAddr;
-    portal = portalAddr;
+    wallet = fundAddr;
+    adminAddress = adminAddr;
+    portalAddress = portalAddr;
+    // The contract will be inActive when it's initialized
+    inActive = true;
   }
 
   /**
@@ -239,7 +247,8 @@ contract GreenX is Owner {
   function () public payable isActive isInSale {
     uint state = getCurrentState();
 
-    require(state >= IN_PRIVATE_SALE);
+    // All investors can't buy tokens through crowdsales after ICO ended
+    require(state >= IN_PRIVATE_SALE && state < END_SALE);
 
     // Private investor
     if (privateList[msg.sender] == true) {
@@ -259,9 +268,10 @@ contract GreenX is Owner {
 
   function getCurrentState() public view returns(uint256) {
     if (saleState == IN_ICO_PHASE1) {
-      if (now > icoStartTime + 45 days) {
-        return END_SALE;
-      }
+      // ICO will be finished manually
+      // if (now > icoStartTime + 45 days) {
+      //   return END_SALE;
+      // }
       if (now > icoStartTime + 30 days) {
         return IN_ICO_PHASE3;
       }
@@ -286,27 +296,28 @@ contract GreenX is Owner {
   function issueTokenForICO(uint256 state) private {
     uint256 price = icoStandardPrice;
     if (state == IN_ICO_PHASE1) {
-      price = icoFirstPhasePrice;
+      price = ico1stPrice;
     } else if (state == IN_ICO_PHASE2) {
-      price = icoSecondPhasePrice;
+      price = ico2ndPrice;
     }
     issueToken(price, state);
   }
 
   function issueToken(uint256 price, uint256 state) private {
-    require(fundKeeperAddress != address(0));
+    require(wallet != address(0));
     address investor = msg.sender;
     uint amount = msg.value.mul(price).mul(10**18).div(1 ether);
     require(availableTokenForSale >= amount);
 
     balances[investor] = balances[investor].add(amount);
     availableTokenForSale = availableTokenForSale.sub(amount);
-    IssueToken(investor, msg.value, amount, state);
 
-    investedMoney[msg.sender] = investedMoney[msg.sender].add(msg.value);
+    totalInvestedAmountOf[msg.sender] = totalInvestedAmountOf[msg.sender].add(msg.value);
 
     // Move ether to fund keeper address
-    fundKeeperAddress.transfer(msg.value);
+    wallet.transfer(msg.value);
+
+    IssueToken(investor, msg.value, amount, state);
   }
 
   function addToWhitelist(address[] investorAddrs) isActive onlyOwnerOrAdminOrPortal external returns(bool) {
@@ -325,18 +336,18 @@ contract GreenX is Owner {
     return true;
   }
 
-  function addPrivateInvestor(address[] investorAddrs) isActive onlyOwnerOrAdminOrPortal external returns(bool) {
+  function addToPrivateList(address[] investorAddrs) isActive onlyOwnerOrAdminOrPortal external returns(bool) {
     for (uint256 i = 0; i < investorAddrs.length; i++) {
       privateList[investorAddrs[i]] = true;
-      AddToPrivateInvestor(investorAddrs[i]);
+      AddToPrivateList(investorAddrs[i]);
     }
     return true;
   }
 
-  function removePrivateInvestor(address[] investorAddrs) isActive onlyOwnerOrAdminOrPortal external returns(bool) {
+  function removeFromPrivateList(address[] investorAddrs) isActive onlyOwnerOrAdminOrPortal external returns(bool) {
     for (uint256 i = 0; i < investorAddrs.length; i++) {
       privateList[investorAddrs[i]] = false;
-      RemoveFromPrivateInvestor(investorAddrs[i]);
+      RemoveFromPrivateList(investorAddrs[i]);
     }
     return true;
   }
@@ -378,7 +389,9 @@ contract GreenX is Owner {
   }
 
   function endICO() isActive onlyOwnerOrAdmin external returns (bool) {
-    require(getCurrentState() == END_SALE);
+    // ICO will be finished manually
+    // require(getCurrentState() == END_SALE);
+    require(getCurrentState() == IN_ICO_PHASE3);
     require(icoEndTime == 0);
 
     saleState = END_SALE;
@@ -389,30 +402,30 @@ contract GreenX is Owner {
   }
 
   function setPrivateSalePrice(uint256 tokenPerEther) onlyOwnerOrAdmin external returns(bool) {
-    require(getCurrentState() == NOT_SALE);
+    // require(getCurrentState() == NOT_SALE);
     privateSalePrice = tokenPerEther;
     SetPrivateSalePrice(tokenPerEther);
     return true;
   }
 
   function setPreSalePrice(uint256 tokenPerEther) onlyOwnerOrAdmin external returns(bool) {
-    require(getCurrentState() < IN_PRESALE);
+    // require(getCurrentState() < IN_PRESALE);
     preSalePrice = tokenPerEther;
     SetPreSalePrice(tokenPerEther);
     return true;
   }
 
   function setICOPrice(uint256 tokenPerEther) onlyOwnerOrAdmin external returns(bool) {
-    require(getCurrentState() < IN_ICO_PHASE1);
+    // require(getCurrentState() < IN_ICO_PHASE1);
     icoStandardPrice = tokenPerEther;
-    icoFirstPhasePrice = tokenPerEther + tokenPerEther * 20 / 100; // Bonus 20%
-    icoSecondPhasePrice = tokenPerEther + tokenPerEther * 10 / 100; // Bonus 10%
+    ico1stPrice = tokenPerEther + tokenPerEther * 20 / 100; // Bonus 20%
+    ico2ndPrice = tokenPerEther + tokenPerEther * 10 / 100; // Bonus 10%
     SetICOPrice(tokenPerEther);
     return true;
   }
 
   function revokeToken(address noneKycAddr, uint256 transactionFee) isActive onlyOwnerOrAdmin external payable {
-    uint256 investedAmount = investedMoney[noneKycAddr];
+    uint256 investedAmount = totalInvestedAmountOf[noneKycAddr];
 
     require(whiteList[noneKycAddr] == false);
     require(privateList[noneKycAddr] == false);
@@ -420,27 +433,27 @@ contract GreenX is Owner {
     require(investedAmount >= transactionFee);
     require(msg.value >= investedAmount);
 
-    uint refundAmount = investedAmount.sub(transactionFee);
+    uint256 refundAmount = investedAmount.sub(transactionFee);
     uint tokenRevoked = balances[noneKycAddr];
-    uint changeAmount = msg.value - refundAmount;
+    uint256 backFund = msg.value.sub(refundAmount);
 
-    investedMoney[noneKycAddr] = 0;
+    totalInvestedAmountOf[noneKycAddr] = 0;
     balances[noneKycAddr] = 0;
     availableTokenForSale = availableTokenForSale.add(tokenRevoked);
 
     noneKycAddr.transfer(refundAmount);
-    msg.sender.transfer(changeAmount);
+    msg.sender.transfer(backFund);
 
     RevokeToken(noneKycAddr, refundAmount, tokenRevoked, transactionFee);
   }
 
   function activateContract() onlyOwner() external {
-    inactive = false;
+    inActive = false;
     ActivateContract();
   }
 
   function deactivateContract() onlyOwner() external {
-    inactive = true;
+    inActive = true;
     DeactivateContract();
   }
 
@@ -448,19 +461,19 @@ contract GreenX is Owner {
     isTransferable = true;
   }
 
-  function changeFundKeeper(address newAddress) onlyOwner external {
-    require(fundKeeperAddress != newAddress);
-    fundKeeperAddress = newAddress;
+  function changeWallet(address newAddress) onlyOwner external {
+    require(wallet != newAddress);
+    wallet = newAddress;
   }
 
   function changeAdminAddress(address newAddress) onlyOwner external {
-    require(admin != newAddress);
-    admin = newAddress;
+    require(adminAddress != newAddress);
+    adminAddress = newAddress;
   }
 
   function changePortalAddress(address newAddress) onlyOwner external {
-    require(portal != newAddress);
-    portal = newAddress;
+    require(portalAddress != newAddress);
+    portalAddress = newAddress;
   }
   
   function changeFounderAddress(address newAddress) onlyOwnerOrAdmin external {
@@ -479,32 +492,33 @@ contract GreenX is Owner {
   }
 
   function allocateTokenForFounder() isActive onlyOwnerOrAdmin external {
-    require(getCurrentState() == END_SALE);
+    // require(getCurrentState() == END_SALE);
+    require(saleState == END_SALE);
     require(founderAddress != address(0));
 
     uint256 amount;
-    if (founderAllocateTimes == 1) {
-      amount = founderTokenNumber * 20/100;
+    if (founderAllocatedTime == 1) {
+      amount = founderAllocation * 20/100;
       balances[founderAddress] = balances[founderAddress].add(amount);
-      AllocateTokenForFounder(founderAddress, founderAllocateTimes, amount);
-      founderAllocateTimes = 2;
+      AllocateTokenForFounder(founderAddress, founderAllocatedTime, amount);
+      founderAllocatedTime = 2;
       return;
     }
 
-    if (founderAllocateTimes == 2) {
+    if (founderAllocatedTime == 2) {
       require(now >= icoEndTime + 180 days);
-      amount = founderTokenNumber * 30/100;
+      amount = founderAllocation * 30/100;
       balances[founderAddress] = balances[founderAddress].add(amount);
-      AllocateTokenForFounder(founderAddress, founderAllocateTimes, amount);
-      founderAllocateTimes = 3;
+      AllocateTokenForFounder(founderAddress, founderAllocatedTime, amount);
+      founderAllocatedTime = 3;
       return;
     }
 
-    if (founderAllocateTimes == 3) {
+    if (founderAllocatedTime == 3) {
       require(now >= icoEndTime + 365 days);
-      amount = founderTokenNumber * 50/100;
+      amount = founderAllocation * 50/100;
       balances[founderAddress] = balances[founderAddress].add(amount);
-      AllocateTokenForFounder(founderAddress, founderAllocateTimes, amount);
+      AllocateTokenForFounder(founderAddress, founderAllocatedTime, amount);
       return;
     }
 
@@ -512,32 +526,33 @@ contract GreenX is Owner {
   }
 
   function allocateTokenForTeam () isActive onlyOwnerOrAdmin external {
-    require(getCurrentState() == END_SALE);
+    // require(getCurrentState() == END_SALE);
+    require(saleState == END_SALE);
     require(teamAddress != address(0));
 
     uint256 amount;
-    if (teamAllocateTimes == 1) {
-      amount = teamTokenNumber * 20/100;
+    if (teamAllocatedTime == 1) {
+      amount = teamAllocation * 20/100;
       balances[teamAddress] = balances[teamAddress].add(amount);
-      AllocateTokenForTeam(teamAddress, teamAllocateTimes, amount);
-      teamAllocateTimes = 2;
+      AllocateTokenForTeam(teamAddress, teamAllocatedTime, amount);
+      teamAllocatedTime = 2;
       return;
     }
 
-    if (teamAllocateTimes == 2) {
+    if (teamAllocatedTime == 2) {
       require(now >= icoEndTime + 180 days);
-      amount = teamTokenNumber * 30/100;
+      amount = teamAllocation * 30/100;
       balances[teamAddress] = balances[teamAddress].add(amount);
-      AllocateTokenForTeam(teamAddress, teamAllocateTimes, amount);
-      teamAllocateTimes = 3;
+      AllocateTokenForTeam(teamAddress, teamAllocatedTime, amount);
+      teamAllocatedTime = 3;
       return;
     }
 
-    if (teamAllocateTimes == 3) {
+    if (teamAllocatedTime == 3) {
       require(now >= icoEndTime + 365 days);
-      amount = teamTokenNumber * 50/100;
+      amount = teamAllocation * 50/100;
       balances[teamAddress] = balances[teamAddress].add(amount);
-      AllocateTokenForTeam(teamAddress, teamAllocateTimes, amount);
+      AllocateTokenForTeam(teamAddress, teamAllocatedTime, amount);
       return;
     }
 
@@ -555,19 +570,19 @@ contract GreenX is Owner {
 
   function allocateReservedToken(uint amount) isActive onlyOwnerOrAdmin external {
     require(saleState == END_SALE);
-    require(availableReservedTokenNumber > 0);
-    require(availableReservedTokenNumber >= amount);
+    require(availableReservedAndBountyAllocation > 0);
+    require(availableReservedAndBountyAllocation >= amount);
     require(reservedAddress != address(0));
 
     balances[reservedAddress] = balances[reservedAddress].add(amount);
-    availableReservedTokenNumber = availableReservedTokenNumber.sub(amount);
+    availableReservedAndBountyAllocation = availableReservedAndBountyAllocation.sub(amount);
     AllocateReservedToken(reservedAddress, amount);
   }
 
-  function decreaseICOStartTimeForTestOnly(uint256 day) public {
-    icoStartTime = icoStartTime - day * 1 days;
-  }
-  function decreaseICOEndTimeForTestOnly(uint256 day) public {
-    icoEndTime = icoEndTime - day * 1 days;
-  }
+  // function decreaseICOStartTimeForTestOnly(uint256 day) public {
+  //   icoStartTime = icoStartTime - day * 1 days;
+  // }
+  // function decreaseICOEndTimeForTestOnly(uint256 day) public {
+  //   icoEndTime = icoEndTime - day * 1 days;
+  // }
 }
