@@ -113,11 +113,11 @@ contract GreenX is Owner {
 
     uint256 public constant salesAllocation = 250000000 * 10 ** 18; // 250 mil tokens allocated for sales
     uint256 public constant bountyAllocation = 50000000 * 10**18; // 50 mil tokens allocated for bonuses
-    uint256 public constant reservedAllocation = 1200000000 * 10 ** 18; // 120 mil tokens allocated for reserved
+    uint256 public constant reservedAllocation = 1200000000 * 10 ** 18; // 120 mil tokens allocated for reserved, bounty campaigns, ICO partners, and bonus fund
     uint256 public constant founderAllocation = 50000000 * 10 ** 18; // 50 mil tokens allocated for founders
     uint256 public constant teamAllocation = 30000000 * 10 ** 18; // 30 mil tokens allocated for team
     uint256 public constant minInvestedCap = 1000 * 10 ** 18; // If this softcap will not be reached till end time, investors can refund ether 
-    uint256 public constant minInvestedAmount = 0.1 * 10 ** 18; // Minimal amount of ether the investor can invest
+    uint256 public constant minInvestedAmount = 0.1 * 10 ** 18; // Mininum ether contribution per transaction
 
     uint256 public privateSalePrice;
     uint256 public preSalePrice;
@@ -131,8 +131,8 @@ contract GreenX is Owner {
     uint256 public totalLoadedRefund; // Total ETH will be loaded to contract for refund
     uint256 public totalRefundedAmount; // Total ETH refunded to investors
 
-    event ModifyWhiteList(address investorAddress, bool isWhiteListed);  // Add / remove investor's address to / from white list
-    event ModifyPrivateList(address investorAddress, bool isPrivateListed);  // Add / remove investor's address to / from private list
+    event ModifyWhiteList(address investorAddress, bool isWhiteListed);  // Add or remove investor's address to or from white list
+    event ModifyPrivateList(address investorAddress, bool isPrivateListed);  // Add or remove investor's address to or from private list
     event StartPrivateSales(uint state); // Start private sales
     event StartPresales(uint state); // Start presales
     event EndPresales(uint state); // End presales
