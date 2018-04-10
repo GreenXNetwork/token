@@ -117,7 +117,7 @@ contract GreenX is Owner {
     uint256 public constant founderAllocation = 50000000 * 10 ** 18; // 50 mil tokens allocated for founders
     uint256 public constant teamAllocation = 30000000 * 10 ** 18; // 30 mil tokens allocated for team
     uint256 public constant minInvestedCap = 1000 * 10 ** 18; // If this softcap will not be reached till end time, investors can refund ether 
-    uint256 public constant minInvestedAmount = 0.5 * 10 ** 18; // Minimal amount of ether the investor can invest
+    uint256 public constant minInvestedAmount = 0.1 * 10 ** 18; // Minimal amount of ether the investor can invest
 
     uint256 public privateSalePrice;
     uint256 public preSalePrice;
