@@ -71,7 +71,7 @@ contract GreenX is Owner {
     string public constant name = "GreenX";
     string public constant symbol = "GEX";
     uint public constant decimals = 18;
-    uint256 constant public totalSupply = 500000000*10**18; // 500 mil tokens will be created
+    uint256 constant public totalSupply = 500000000 * 10 ** 18; // 500 mil tokens will be created
   
     mapping(address => uint256) balances;
     mapping(address => mapping (address => uint256)) internal allowed;
