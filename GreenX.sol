@@ -109,11 +109,11 @@ contract GreenX is Owner {
     uint constant lockPeriod3 = 2 years; // locked period for remaining sale tokens after ending ICO
 
     uint256 public constant salesAllocation = 187500000 * 10 ** 18; // 187.5 mil tokens allocated for sales
-    uint256 public constant bonusAllocation = 37500000 * 10 ** 18; // 37.5 mil tokens allocated for bonuses
+    uint256 public constant bonusAllocation = 37500000 * 10 ** 18; // 37.5 mil tokens allocated for token sale bonuses
     uint256 public constant reservedAllocation = 90000000 * 10 ** 18; // 90 mil tokens allocated for reserved, bounty campaigns, ICO partners, and bonus fund
     uint256 public constant founderAllocation = 37500000 * 10 ** 18; // 37.5 mil tokens allocated for founders
     uint256 public constant teamAllocation = 22500000 * 10 ** 18; // 22.5 mil tokens allocated for team
-    uint256 public constant minInvestedCap = 3000 * 10 ** 18; // If this softcap will not be reached till end time, investors can refund ether 
+    uint256 public constant minInvestedCap = 2500 * 10 ** 18; // If this softcap will not be reached till end time, investors can refund ether 
     uint256 public constant minInvestedAmount = 0.1 * 10 ** 18; // Mininum ether contribution per transaction
 
     uint256 public privateSalePrice;
