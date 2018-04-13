@@ -68,16 +68,13 @@ library SafeMath {
 contract GreenX is Owner {
     using SafeMath for uint256;
 
-    string public constant name = "GreenX";
+    string public constant name = "GREENX";
     string public constant symbol = "GEX";
     uint public constant decimals = 18;
-    uint256 constant public totalSupply = 500000000 * 10 ** 18; // 500 mil tokens will be created
+    uint256 constant public totalSupply = 375000000 * 10 ** 18; // 375 mil tokens will be created
   
     mapping(address => uint256) balances;
     mapping(address => mapping (address => uint256)) internal allowed;
-
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-    event Transfer(address indexed from, address indexed to, uint256 value);
 
     address public portalAddress;
     address public adminAddress;
@@ -95,28 +92,28 @@ contract GreenX is Owner {
     bool public inActive;
     bool public isSelling;
     bool public isTransferable;
-
-    uint constant NOT_SALE = 0;
-    uint constant IN_PRIVATE_SALE = 1;
-    uint constant IN_PRESALE = 2;
-    uint constant END_PRESALE = 3;
-    uint constant IN_1ST_ICO = 4;
-    uint constant IN_2ND_ICO = 5;
-    uint constant IN_3RD_ICO = 6;
-    uint constant END_SALE = 7;
+    
+    uint constant NOT_SALE = 0; // not in sales
+    uint constant IN_PRIVATE_SALE = 1; // in private sales
+    uint constant IN_PRESALE = 2; // in presales
+    uint constant END_PRESALE = 3; // end presales
+    uint constant IN_1ST_ICO = 4; // in ICO 1st round
+    uint constant IN_2ND_ICO = 5; // in ICO 2nd round
+    uint constant IN_3RD_ICO = 6; // in ICO 3rd round
+    uint constant END_SALE = 7; // end sales
 
     uint founderAllocatedTime = 1;
     uint teamAllocatedTime = 1;
-    uint constant lockPeriod1 = 180 days;
-    uint constant lockPeriod2 = 1 years;
-    uint constant lockPeriod3 = 2 years;
+    uint constant lockPeriod1 = 180 days; // 1st locked period for tokens allocation of founder and team
+    uint constant lockPeriod2 = 1 years; // 2nd locked period for tokens allocation of founder and team
+    uint constant lockPeriod3 = 2 years; // locked period for remaining sale tokens after ending ICO
 
-    uint256 public constant salesAllocation = 250000000 * 10 ** 18; // 250 mil tokens allocated for sales
-    uint256 public constant bountyAllocation = 50000000 * 10 ** 18; // 50 mil tokens allocated for bonuses
-    uint256 public constant reservedAllocation = 120000000 * 10 ** 18; // 120 mil tokens allocated for reserved, bounty campaigns, ICO partners, and bonus fund
-    uint256 public constant founderAllocation = 50000000 * 10 ** 18; // 50 mil tokens allocated for founders
-    uint256 public constant teamAllocation = 30000000 * 10 ** 18; // 30 mil tokens allocated for team
-    uint256 public constant minInvestedCap = 1000 * 10 ** 18; // If this softcap will not be reached till end time, investors can refund ether 
+    uint256 public constant salesAllocation = 187500000 * 10 ** 18; // 187.5 mil tokens allocated for sales
+    uint256 public constant bonusAllocation = 37500000 * 10 ** 18; // 37.5 mil tokens allocated for bonuses
+    uint256 public constant reservedAllocation = 90000000 * 10 ** 18; // 90 mil tokens allocated for reserved, bounty campaigns, ICO partners, and bonus fund
+    uint256 public constant founderAllocation = 37500000 * 10 ** 18; // 37.5 mil tokens allocated for founders
+    uint256 public constant teamAllocation = 22500000 * 10 ** 18; // 22.5 mil tokens allocated for team
+    uint256 public constant minInvestedCap = 3000 * 10 ** 18; // If this softcap will not be reached till end time, investors can refund ether 
     uint256 public constant minInvestedAmount = 0.1 * 10 ** 18; // Mininum ether contribution per transaction
 
     uint256 public privateSalePrice;
@@ -127,9 +124,12 @@ contract GreenX is Owner {
 
     uint256 totalInvestedAmount;
     uint256 public totalRemainingTokensForSales; // Total tokens remain for sales
-    uint256 public totalReservedAndBountyTokenAllocation; // Total tokens allocated for reserved and bonuses
-    uint256 public totalLoadedRefund; // Total ETH will be loaded to contract for refund
-    uint256 public totalRefundedAmount; // Total ETH refunded to investors
+    uint256 public totalReservedAndBonusTokenAllocation; // Total tokens allocated for reserved and bonuses
+    uint256 public totalLoadedRefund; // Total ether will be loaded to contract for refund
+    uint256 public totalRefundedAmount; // Total ether refunded to investors
+
+    event Approval(address indexed owner, address indexed spender, uint256 value); // ERC20 standard event
+    event Transfer(address indexed from, address indexed to, uint256 value); // ERC20 standard event
 
     event ModifyWhiteList(address investorAddress, bool isWhiteListed);  // Add or remove investor's address to or from white list
     event ModifyPrivateList(address investorAddress, bool isPrivateListed);  // Add or remove investor's address to or from private list
@@ -138,13 +138,17 @@ contract GreenX is Owner {
     event EndPresales(uint state); // End presales
     event StartICO(uint state); // Start ICO sales
     event EndICO(uint state); // End ICO sales
-    event ModifyPrice(uint256 privateSalePrice, uint256 preSalePrice, uint256 icoStandardPrice, uint256 ico1stPrice, uint256 ico2ndPrice); // The sales price's modified for private sales, presales and ICO
+    
+    event SetPrivateSalePrice(uint256 price); // Set private sale price
+    event SetPreSalePrice(uint256 price); // Set presale price
+    event SetICOPrice(uint256 price); // Set ICO sale prices
+    
     event IssueTokens(address investorAddress, uint256 amount, uint256 tokenAmount, uint state); // Issue tokens to investor
     event RevokeTokens(address investorAddress, uint256 amount, uint256 tokenAmount, uint256 txFee); // Revoke tokens after ending ICO for uncompleted KYC investors
     event AllocateTokensForFounder(address founderAddress, uint256 founderAllocatedTime, uint256 tokenAmount); // Allocate tokens to founders' address
     event AllocateTokensForTeam(address teamAddress, uint256 teamAllocatedTime, uint256 tokenAmount); // Allocate tokens to team's address
     event AllocateReservedTokens(address reservedAddress, uint256 tokenAmount); // Allocate reserved tokens
-    event Refund(address investorAddress, uint256 etherRefundedAmount, uint256 tokensRevokedAmount); // Refund ETH and revoke tokens for investors
+    event Refund(address investorAddress, uint256 etherRefundedAmount, uint256 tokensRevokedAmount); // Refund ether and revoke tokens for investors
 
     modifier isActive() {
         require(inActive == false);
@@ -178,10 +182,10 @@ contract GreenX is Owner {
         inActive = true;
         totalInvestedAmount = 0;
         totalRemainingTokensForSales = salesAllocation;
-        totalReservedAndBountyTokenAllocation = reservedAllocation + bountyAllocation;
+        totalReservedAndBonusTokenAllocation = reservedAllocation + bonusAllocation;
     }
 
-    // Fallback function for buying tokens
+    // Fallback function for token purchasing  
     function () external payable isActive isInSale {
         uint state = getCurrentState();
         require(state >= IN_PRIVATE_SALE && state < END_SALE);
@@ -200,12 +204,13 @@ contract GreenX is Owner {
         revert();
     }
 
-    // Load ETH amount to contract for refuding or revoking
+    // Load ether amount to contract for refuding or revoking
     function loadFund() external payable isActive {
         require(msg.value > 0);
         totalLoadedRefund = totalLoadedRefund.add(msg.value);
     }
 
+    // ERC20 standard function
     function transfer(address _to, uint256 _value) external transferable isActive returns (bool) {
         require(_to != address(0));
         require(_value <= balances[msg.sender]);
@@ -215,6 +220,7 @@ contract GreenX is Owner {
         return true;
     }
 
+    // ERC20 standard function
     function transferFrom(address _from, address _to, uint256 _value) external transferable isActive returns (bool) {
         require(_to != address(0));
         require(_value <= balances[_from]);
@@ -226,6 +232,7 @@ contract GreenX is Owner {
         return true;
     }
 
+    // ERC20 standard function
     function approve(address _spender, uint256 _value) external transferable isActive returns (bool) {
         allowed[msg.sender][_spender] = _value;
         emit Approval(msg.sender, _spender, _value);
@@ -303,14 +310,14 @@ contract GreenX is Owner {
     // Set private sales price
     function setPrivateSalePrice(uint256 _tokenPerEther) external onlyOwnerOrAdmin returns(bool) {
         privateSalePrice = _tokenPerEther;
-        emit ModifyPrice(privateSalePrice,0,0,0,0);
+        emit SetPrivateSalePrice(privateSalePrice);
         return true;
     }
 
     // Set presales price
     function setPreSalePrice(uint256 _tokenPerEther) external onlyOwnerOrAdmin returns(bool) {
         preSalePrice = _tokenPerEther;
-        emit ModifyPrice(0,preSalePrice,0,0,0);
+        emit SetPreSalePrice(preSalePrice);
         return true;
     }
 
@@ -319,11 +326,11 @@ contract GreenX is Owner {
         icoStandardPrice = _tokenPerEther;
         ico1stPrice = _tokenPerEther + _tokenPerEther * 20 / 100;
         ico2ndPrice = _tokenPerEther + _tokenPerEther * 10 / 100;
-        emit ModifyPrice(0,0,icoStandardPrice,ico1stPrice,ico2ndPrice);
+        emit SetICOPrice(icoStandardPrice);
         return true;
     }
 
-    // Revoke tokens from not completed KYC investors' addresses
+    // Revoke tokens from incompleted KYC investors' addresses
     function revokeTokens(address _noneKycAddr, uint256 _transactionFee) external isActive onlyOwnerOrAdmin {
         uint256 investedAmount = totalInvestedAmountOf[_noneKycAddr];
         uint256 totalRemainingRefund = totalLoadedRefund.sub(totalRefundedAmount);
@@ -341,7 +348,7 @@ contract GreenX is Owner {
         emit RevokeTokens(_noneKycAddr, refundAmount, tokenRevoked, _transactionFee);
     }    
 
-    // Investors can claim ETH refund if total raised fund doesn't reach our softcap
+    // Investors can claim ether refund if total raised fund doesn't reach our softcap
     function refund() external isActive {
         uint256 refundedAmount = totalInvestedAmountOf[msg.sender];
         uint256 totalRemainingRefund = totalLoadedRefund.sub(totalRefundedAmount);
@@ -470,28 +477,25 @@ contract GreenX is Owner {
     // Allocate reserved tokens
     function allocateReservedTokens(address _addr, uint amount) external isActive onlyOwnerOrAdmin { 
         require(saleState == END_SALE);
-        require(totalReservedAndBountyTokenAllocation > 0);
-        require(totalReservedAndBountyTokenAllocation >= amount);
+        require(totalReservedAndBonusTokenAllocation > 0);
+        require(totalReservedAndBonusTokenAllocation >= amount);
         require(_addr != address(0));
         balances[_addr] = balances[_addr].add(amount);
-        totalReservedAndBountyTokenAllocation = totalReservedAndBountyTokenAllocation.sub(amount);
+        totalReservedAndBonusTokenAllocation = totalReservedAndBonusTokenAllocation.sub(amount);
         emit AllocateReservedTokens(_addr, amount);
     }
 
+    // ERC20 standard function
     function allowance(address _owner, address _spender) external constant returns (uint256) {
         return allowed[_owner][_spender];
     }
 
+    // ERC20 standard function
     function balanceOf(address _owner) external constant returns (uint256 balance) {
         return balances[_owner];
     }
 
-    // Get current sales state as below
-    //  0 : not in sales
-    //  1 : in private sales
-    //  2 : in presales, 3 : end presales
-    //  4 : in ICO 1st round, 5 : in ICO 2nd round, 6 : in ICO 3rd round
-    //  7 : end sales 
+    // Get current sales state
     function getCurrentState() public view returns(uint256) {
         if (saleState == IN_1ST_ICO) {
             if (now > icoStartTime + 30 days) {
@@ -545,11 +549,4 @@ contract GreenX is Owner {
         wallet.transfer(msg.value);
         emit IssueTokens(msg.sender, msg.value, tokenAmount, _state);
     }
-
-    // function decreaseICOStartTimeForTestOnly(uint256 day) public {
-    //   icoStartTime = icoStartTime - day * 1 days;
-    // }
-    // function decreaseICOEndTimeForTestOnly(uint256 day) public {
-    //   icoEndTime = icoEndTime - day * 1 days;
-    // }
 }
