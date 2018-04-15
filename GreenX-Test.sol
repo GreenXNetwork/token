@@ -177,7 +177,6 @@ contract GreenX is Owner {
         require(_walletAddr != address(0));
         require(_adminAddr != address(0));
         require(_portalAddr != address(0));
-		
         walletAddress = _walletAddr;
         adminAddress = _adminAddr;
         portalAddress = _portalAddr;
@@ -209,7 +208,6 @@ contract GreenX is Owner {
     // Load ether amount to contract for refunding or revoking
     function loadFund() external payable {
         require(msg.value > 0);
-		
         totalLoadedRefund = totalLoadedRefund.add(msg.value);
     }
 
@@ -217,7 +215,7 @@ contract GreenX is Owner {
     function transfer(address _to, uint256 _value) external transferable returns (bool) {
         require(_to != address(0));
         require(_value > 0);
-
+        // require(_value <= balances[msg.sender]);
         balances[msg.sender] = balances[msg.sender].sub(_value);
         balances[_to] = balances[_to].add(_value);
         emit Transfer(msg.sender, _to, _value);
@@ -229,7 +227,8 @@ contract GreenX is Owner {
         require(_to != address(0));
         require(_from != address(0));
         require(_value > 0);
-
+        // require(_value <= balances[_from]);
+        // require(_value <= allowed[_from][msg.sender]);
         balances[_from] = balances[_from].sub(_value);
         balances[_to] = balances[_to].add(_value);
         allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
@@ -241,7 +240,6 @@ contract GreenX is Owner {
     function approve(address _spender, uint256 _value) external transferable returns (bool) {
         require(_spender != address(0));
         require(_value > 0);
-		
         allowed[msg.sender][_spender] = _value;
         emit Approval(msg.sender, _spender, _value);
         return true;
@@ -269,7 +267,6 @@ contract GreenX is Owner {
     function startPrivateSales() external isActive onlyOwnerOrAdmin returns (bool) {
         require(saleState == NOT_SALE);
         require(privateSalePrice > 0);
-		
         saleState = IN_PRIVATE_SALE;
         isSelling = true;
         emit StartPrivateSales(saleState);
@@ -280,7 +277,6 @@ contract GreenX is Owner {
     function startPreSales() external isActive onlyOwnerOrAdmin returns (bool) {
         require(saleState < IN_PRESALE);
         require(preSalePrice > 0);
-		
         saleState = IN_PRESALE;
         isSelling = true;
         emit StartPresales(saleState);
@@ -290,7 +286,6 @@ contract GreenX is Owner {
     // End presales
     function endPreSales() external isActive onlyOwnerOrAdmin returns (bool) {
         require(saleState == IN_PRESALE);
-		
         saleState = END_PRESALE;
         isSelling = false;
         emit EndPresales(saleState);
@@ -301,7 +296,6 @@ contract GreenX is Owner {
     function startICO() external isActive onlyOwnerOrAdmin returns (bool) {
         require(saleState == END_PRESALE);
         require(icoStandardPrice > 0);
-		
         saleState = IN_1ST_ICO;
         icoStartTime = now;
         isSelling = true;
@@ -313,7 +307,6 @@ contract GreenX is Owner {
     function endICO() external isActive onlyOwnerOrAdmin returns (bool) {
         require(getCurrentState() == IN_3RD_ICO);
         require(icoEndTime == 0);
-		
         saleState = END_SALE;
         isSelling = false;
         icoEndTime = now;
@@ -324,7 +317,6 @@ contract GreenX is Owner {
     // Set private sales price
     function setPrivateSalePrice(uint256 _tokenPerEther) external onlyOwnerOrAdmin returns(bool) {
         require(_tokenPerEther > 0);
-		
         privateSalePrice = _tokenPerEther;
         emit SetPrivateSalePrice(privateSalePrice);
         return true;
@@ -333,7 +325,6 @@ contract GreenX is Owner {
     // Set presales price
     function setPreSalePrice(uint256 _tokenPerEther) external onlyOwnerOrAdmin returns(bool) {
         require(_tokenPerEther > 0);
-		
         preSalePrice = _tokenPerEther;
         emit SetPreSalePrice(preSalePrice);
         return true;
@@ -342,7 +333,6 @@ contract GreenX is Owner {
     // Set ICO price including ICO standard price, ICO 1st round price, ICO 2nd round price
     function setICOPrice(uint256 _tokenPerEther) external onlyOwnerOrAdmin returns(bool) {
         require(_tokenPerEther > 0);
-		
         icoStandardPrice = _tokenPerEther;
         ico1stPrice = _tokenPerEther + _tokenPerEther * 20 / 100;
         ico2ndPrice = _tokenPerEther + _tokenPerEther * 10 / 100;
@@ -356,10 +346,10 @@ contract GreenX is Owner {
         uint256 investedAmount = totalInvestedAmountOf[_noneKycAddr];
         uint256 totalRemainingRefund = totalLoadedRefund.sub(totalRefundedAmount);
         require(whiteList[_noneKycAddr] == false && privateList[_noneKycAddr] == false);
+        // require(investedAmount > 0 && investedAmount >= _transactionFee);
         require(investedAmount > 0);
         require(totalRemainingRefund >= investedAmount);
         require(saleState == END_SALE);
-		
         uint256 refundAmount = investedAmount.sub(_transactionFee);
         uint tokenRevoked = balances[_noneKycAddr];
         totalInvestedAmountOf[_noneKycAddr] = 0;
@@ -378,7 +368,6 @@ contract GreenX is Owner {
         require(saleState == END_SALE);
         require(!isSoftCapReached());
         require(totalRemainingRefund >= refundedAmount && refundedAmount > 0);
-		
         totalInvestedAmountOf[msg.sender] = 0;
         balances[msg.sender] = 0;
         totalRemainingTokensForSales = totalRemainingTokensForSales.add(tokenRevoked);
@@ -512,9 +501,10 @@ contract GreenX is Owner {
     // Allocate reserved tokens
     function allocateReservedTokens(address _addr, uint _amount) external isActive onlyOwnerOrAdmin {
         require(saleState == END_SALE);
+        // require(totalReservedAndBonusTokenAllocation > 0);
+        // require(totalReservedAndBonusTokenAllocation >= amount);
         require(_amount > 0);
         require(_addr != address(0));
-		
         balances[_addr] = balances[_addr].add(_amount);
         totalReservedAndBonusTokenAllocation = totalReservedAndBonusTokenAllocation.sub(_amount);
         emit AllocateReservedTokens(_addr, _amount);
@@ -575,13 +565,32 @@ contract GreenX is Owner {
     // Issue tokens to investors and transfer ether to wallet
     function issueTokens(uint256 _price, uint _state) private {
         require(walletAddress != address(0));
-		
         uint tokenAmount = msg.value.mul(_price).mul(10**18).div(1 ether);
+        // require(totalRemainingTokensForSales >= tokenAmount);
         balances[msg.sender] = balances[msg.sender].add(tokenAmount);
         totalInvestedAmountOf[msg.sender] = totalInvestedAmountOf[msg.sender].add(msg.value);
         totalRemainingTokensForSales = totalRemainingTokensForSales.sub(tokenAmount);
         totalInvestedAmount = totalInvestedAmount.add(msg.value);
         walletAddress.transfer(msg.value);
         emit IssueTokens(msg.sender, msg.value, tokenAmount, _state);
+    }
+
+    // ForTestOnly
+    function checkTokenAllocation() public view returns(bool) {
+        uint256 totalTokenAllocation = salesAllocation + bonusAllocation + reservedAllocation + founderAllocation + teamAllocation;
+        if (totalSupply != totalTokenAllocation) {
+            return false;
+        }
+        return true;
+    }
+    
+    // ForTestOnly
+    function decreaseICOStartTime(uint256 day) public {
+        icoStartTime = icoStartTime - day * 1 days;
+    }
+
+    // ForTestOnly
+    function decreaseICOEndTime(uint256 day) public {
+        icoEndTime = icoEndTime - day * 1 days;
     }
 }
