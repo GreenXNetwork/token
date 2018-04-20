@@ -2,8 +2,8 @@
 Our smart contract’s designed and developed based on ERC20 standard followed strict procedure of software development from requirement analyzing, designing, developing, unit and business testing, auditing and deploying. The code’s simplified and optimized for both of business and coding quality criteria.
 
 ## Links and references
-Github official contract issue tracker and source code (https://github.com/GreenXNetwork/token/blob/develop/GreenX.sol)
-Solidity documentation for coding standard and optimization (https://ico.readthedocs.io/en/latest/)
+[Github official contract issue tracker and source code] (https://github.com/GreenXNetwork/token/blob/develop/GreenX.sol)
+[Solidity documentation for coding standard and optimization] (https://ico.readthedocs.io/en/latest/)
 
 
 ## Outstanding features
